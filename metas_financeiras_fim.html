@@ -165,9 +165,11 @@
             transition: background-color 0.2s;
         }
         .nav-btn:hover { background-color: #c7d2fe; }
+        /* --- Saldo Summary (Ajustado para layout com 3 KPIs) --- */
         #saldo-summary {
-            display: flex;
-            justify-content: space-between;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
             margin-bottom: 15px;
         }
         .saldo-item {
@@ -175,8 +177,13 @@
             border-radius: 12px;
             background-color: white;
             box-shadow: 0 4px 10px rgba(0,0,0,0.08);
-            width: 48%;
             border-bottom: 3px solid #1e3a8a;
+            text-align: center;
+        }
+        /* Estilo para o Saldo Real Acumulado (ocupando as duas colunas) */
+        .saldo-item.real-acumulado {
+            grid-column: 1 / span 2; 
+            border-bottom: 3px solid #10b981; /* Destaque verde */
         }
         .saldo-label { font-size: 0.85em; color: #64748b; margin-bottom: 5px; font-weight: 500; }
         .saldo-valor { font-size: 1.6em; font-weight: 700; }
@@ -351,6 +358,19 @@
             margin-top: 10px;
         }
         .btn-month-action:hover { background-color: #dc2626; }
+        
+        /* NOVO: Ícone de Depósito no Calendário */
+        .deposit-icon {
+            font-size: 0.8em;
+            color: #333;
+            background-color: #ffeb3b; /* Amarelo */
+            border-radius: 50%;
+            padding: 2px 5px;
+            margin-left: 5px;
+            font-weight: 700;
+            line-height: 1;
+            box-shadow: 0 0 0 2px #ffeb3b;
+        }
     </style>
 </head>
 <body>
@@ -395,12 +415,16 @@
             </div>
 
             <div id="saldo-summary">
+                <div class="saldo-item real-acumulado">
+                    <div class="saldo-label">SALDO LÍQUIDO REAL (Até Dia Anterior)</div>
+                    <div class="saldo-valor" id="saldo-real-acumulado-display">R$ 0.00</div>
+                </div>
                 <div class="saldo-item">
-                    <div class="saldo-label">SALDO COMUM PROJETADO (Final do Mês)</div>
+                    <div class="saldo-label">COMUM PROJETADO (Final do Mês)</div>
                     <div class="saldo-valor" id="saldo-comum-display">R$ 0.00</div>
                 </div>
                 <div class="saldo-item">
-                    <div class="saldo-label">SALDO VR PROJETADO (Final do Mês)</div>
+                    <div class="saldo-label">VR PROJETADO (Final do Mês)</div>
                     <div class="saldo-valor" id="saldo-vr-display">R$ 0.00</div>
                 </div>
             </div>
@@ -501,7 +525,7 @@
 
         // Variáveis de Contexto
         const TODAY = new Date();
-        const HOJE = TODAY.getDate();
+        const HOJE = TODAY.getDate(); // Dia de hoje (ex: 11)
         const MES_ATUAL = TODAY.getMonth();
         const ANO_ATUAL = TODAY.getFullYear();
         const LOCAL_STORAGE_KEY = 'personalBudgetData';
@@ -518,6 +542,7 @@
             return new Date(year, month + 1, 0).getDate();
         }
         function parseInput(value) {
+            // Permite vírgula para formato BR, mas o input type="number" pode complicar isso
             return parseFloat(String(value).replace(',', '.')) || 0;
         }
 
@@ -642,6 +667,10 @@
             
             let orcamentoTotal = 0;
             let gastoRealAcumulado = 0;
+            // NOVAS VARIÁVEIS PARA RASTREAR SALDO ATÉ ONTEM (HOJE - 1)
+            let saldoRealTotalAteOntem = 0; 
+            let saldoRealCalculado = false;
+
 
             monthData.dias.forEach((dia) => {
                 const isPassado = dia.status === 'passado';
@@ -660,23 +689,42 @@
                     gastoRealAcumulado += gastoTotal;
                 }
 
-                // 2. CÁLCULO DE SALDO DIÁRIO
+                // 2. CÁLCULO DE SALDO DIÁRIO (PROJETADO)
                 dia.saldoPrevistoComum = Number((saldoComumAnterior + entradasComum - gastoComum).toFixed(2));
                 saldoComumAnterior = dia.saldoPrevistoComum;
 
                 dia.saldoPrevistoVr = Number((saldoVrAnterior + entradasVr - gastoVr).toFixed(2));
                 saldoVrAnterior = dia.saldoPrevistoVr;
 
+                // 3. RASTREIO DO SALDO REAL ATÉ ONTEM
+                if (!saldoRealCalculado && monthData.mesIndex === MES_ATUAL && monthData.ano === ANO_ATUAL) {
+                    if (dia.dia === HOJE) {
+                        // O saldo do dia ANTERIOR (HOJE - 1) é o saldo final do dia anterior
+                        const diaAnterior = monthData.dias[HOJE - 2]; 
+                        
+                        if (HOJE === 1) {
+                             // Se HOJE é dia 1, o saldo até ontem é o Saldo Inicial
+                            saldoRealTotalAteOntem = Number(monthData.saldoInicialComum) + Number(monthData.saldoInicialVr);
+                        } else if (diaAnterior) {
+                             // Se não é dia 1, usa o saldo final do dia anterior
+                            saldoRealTotalAteOntem = diaAnterior.saldoPrevistoComum + diaAnterior.saldoPrevistoVr;
+                        }
+                        saldoRealCalculado = true; // Impede que seja calculado novamente
+                    }
+                }
+
+
                 if (dia.saldoPrevistoComum < 0 || dia.saldoPrevistoVr < 0) {
                     alertaDisparado = true;
                 }
             });
 
-            // 3. Atualizar resumo de Gastos
+            // 4. Atualizar resumo de Gastos
             renderGastoSummary(orcamentoTotal, gastoRealAcumulado);
 
             updateNextMonthInitialSaldo();
-            renderSummary(monthData);
+            // Passa o novo saldo real acumulado para a função de renderização principal
+            renderSummary(monthData, saldoRealTotalAteOntem);
 
             const alertArea = document.getElementById('alert-area');
             if (alertaDisparado) {
@@ -710,16 +758,28 @@
             card.classList.toggle('expanded');
         }
 
-        function renderSummary(monthData) {
+        /**
+         * RENDERIZA OS KPIs SUPERIORES
+         * @param {Object} monthData Dados do mês atual
+         * @param {number} saldoRealTotalAteOntem Saldo total (Comum + VR) do dia anterior
+         */
+        function renderSummary(monthData, saldoRealTotalAteOntem) {
             const lastDay = monthData.dias[monthData.dias.length - 1];
             const saldoComum = lastDay ? lastDay.saldoPrevistoComum : monthData.saldoInicialComum;
             const saldoVr = lastDay ? lastDay.saldoPrevistoVr : monthData.saldoInicialVr;
 
             const saldoComumDisplay = document.getElementById('saldo-comum-display');
             const saldoVrDisplay = document.getElementById('saldo-vr-display');
+            const saldoRealAcumuladoDisplay = document.getElementById('saldo-real-acumulado-display'); // Novo KPI
 
             const finalComum = Number(saldoComum) || 0.00;
             const finalVr = Number(saldoVr) || 0.00;
+            const finalRealAcumulado = Number(saldoRealTotalAteOntem) || 0.00; 
+
+            // Renderiza o novo KPI (Saldo até Ontem)
+            saldoRealAcumuladoDisplay.textContent = `R$ ${finalRealAcumulado.toFixed(2)}`;
+            saldoRealAcumuladoDisplay.className = 'saldo-valor ' + (finalRealAcumulado < 0 ? 'saldo-alerta' : 'saldo-ok');
+
 
             saldoComumDisplay.textContent = `R$ ${finalComum.toFixed(2)}`;
             saldoComumDisplay.className = 'saldo-valor ' + (finalComum < 0 ? 'saldo-alerta' : 'saldo-ok');
@@ -770,6 +830,10 @@
                     cardClass += ' saldo-alerta';
                 }
 
+                // NOVO: Verifica se há depósito
+                const hasDeposit = (Number(dia.depositoComum) || 0) > 0 || (Number(dia.depositoVr) || 0) > 0;
+                const depositIconHtml = hasDeposit ? `<span class="deposit-icon">$</span>` : '';
+
                 const card = document.createElement('div');
                 card.className = `day-card ${cardClass}`;
                 card.id = `day-card-${dia.dia}`;
@@ -805,7 +869,7 @@
                     <div class="day-header" onclick="toggleDayDetails(${dia.dia})">
                         <div class="day-info">
                             <span class="day-date">${dia.dia}</span>
-                            <span class="day-date-label">${diaSemana}</span>
+                            <span class="day-date-label">${diaSemana} ${depositIconHtml}</span>
                         </div>
                         
                         <div class="day-status" style="text-align: center;">
