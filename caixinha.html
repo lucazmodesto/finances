@@ -239,17 +239,9 @@
         }
         .check-pending { background-color: #fecaca; color: #dc2626; }
         .check-confirmed { background-color: #a7f3d0; color: #059669; }
+        /* O botão de ação (antigo salvar) é mantido oculto */
         .action-button {
-            width: 100%;
-            padding: 12px;
-            background-color: #3b82f6;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            margin-top: 15px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: background-color 0.2s;
+            display: none; 
         }
     </style>
 </head>
@@ -298,12 +290,8 @@
             
             <section id="caixinhas-list">
             </section>
-
-            <button class="action-button" onclick="saveCaixinhasData()" style="background-color: #10b981;">
-                💾 Salvar Alterações
-            </button>
-
-        </main>
+            
+            </main>
     </div> <script>
         // --- FUNÇÕES DE NAVEGAÇÃO ---
         function openSidebar() {
@@ -330,7 +318,8 @@
         let db;
         const DOC_ID_CAIXINHAS = 'caixinhas_data'; 
         const COLLECTION_NAME = 'budget_app_data'; 
-        const LOCAL_STORAGE_KEY_CAIXINHAS = 'caixinhasData';
+        // LOCAL_STORAGE_KEY_CAIXINHAS MANTIDO APENAS PARA COMPATIBILIDADE, MAS NÃO USADO ABAIXO.
+        const LOCAL_STORAGE_KEY_CAIXINHAS = 'caixinhasData'; 
         
         const CURRENT_MONTH_YEAR = 'Dezembro 2025'; 
         let currentFocusElementId = null; 
@@ -343,7 +332,7 @@
             document.getElementById('connection-status').classList.add('status-success');
         } catch (e) {
             console.error("Erro na inicialização do Firebase:", e);
-            document.getElementById('connection-status').textContent = '❌ Erro no Firebase. Usando armazenamento local.';
+            document.getElementById('connection-status').textContent = '❌ Erro no Firebase. Verifique a configuração.';
         }
         
         // --- 2. DADOS INICIAIS ---
@@ -423,16 +412,51 @@
             card.classList.toggle('expanded');
         }
 
+        /**
+         * CARREGA DADOS: APENAS DO FIREBASE.
+         */
         async function loadCaixinhasData() {
-            const storedData = localStorage.getItem(LOCAL_STORAGE_KEY_CAIXINHAS);
-            if (storedData) { return JSON.parse(storedData); }
+            if (db) {
+                try {
+                    const doc = await db.collection(COLLECTION_NAME).doc(DOC_ID_CAIXINHAS).get();
+                    if (doc.exists) {
+                         document.getElementById('connection-status').textContent = '✅ Dados carregados da Nuvem.';
+                         document.getElementById('connection-status').classList.add('status-success');
+                         return doc.data().data;
+                    }
+                } catch(e) {
+                     console.error("Erro ao carregar do Firestore.", e);
+                     document.getElementById('connection-status').textContent = '⚠️ Falha ao carregar da Nuvem. Iniciando dados padrão.';
+                }
+            } else {
+                document.getElementById('connection-status').textContent = '❌ Erro no Firebase. Iniciando dados padrão.';
+            }
+            
+            // Retorna dados iniciais se o Firebase falhar ou não tiver dados
             return DADOS_INICIAIS_CAIXINHAS;
         }
 
+        /**
+         * SALVA DADOS: APENAS NO FIREBASE.
+         */
         async function saveCaixinhasData() {
-            calculateAccumulatedTotals(); 
-            localStorage.setItem(LOCAL_STORAGE_KEY_CAIXINHAS, JSON.stringify(caixinhasData));
-            document.getElementById('connection-status').textContent = '✅ Dados das Caixinhas salvos no Local Storage.';
+            calculateAccumulatedTotals();
+            
+            if (db) {
+                try {
+                    await db.collection(COLLECTION_NAME).doc(DOC_ID_CAIXINHAS).set({
+                        data: caixinhasData
+                    });
+                    document.getElementById('connection-status').textContent = '✅ Dados salvos automaticamente na Nuvem.';
+                    document.getElementById('connection-status').classList.add('status-success');
+                } catch(e) {
+                    console.error("Erro ao salvar no Firestore: ", e);
+                    document.getElementById('connection-status').textContent = '🛑 ERRO: Falha ao salvar na Nuvem. Verifique a conexão/config.';
+                    document.getElementById('connection-status').classList.remove('status-success');
+                }
+            } else {
+                 document.getElementById('connection-status').textContent = '❌ Firebase inoperante. Não foi possível salvar.';
+            }
         }
 
         function calculateAccumulatedTotals() {
@@ -557,7 +581,7 @@
                     </div>
                 `;
 
-                caixinha.entradasMensais.forEach((mes, mesIndex) => {
+                caixinhasData[caixinhaIndex].entradasMensais.forEach((mes, mesIndex) => {
                     const isConfirmed1 = mes.okDep1;
                     const checkClass1 = isConfirmed1 ? 'check-confirmed' : 'check-pending';
                     const checkIcon1 = isConfirmed1 ? '✔' : '...'; 
@@ -636,12 +660,16 @@
                 }
                 currentFocusElementId = null; 
             }
+            
+            // *** CHAMADA DE SALVAMENTO AUTOMÁTICO NA NUVEM ***
+            saveCaixinhasData();
         }
         
         // --- INICIALIZAÇÃO ---
 
         async function initApp() {
             caixinhasData = await loadCaixinhasData();
+            // A primeira renderização também salva, o que é desejado aqui
             renderCaixinhasPage(); 
         }
 
