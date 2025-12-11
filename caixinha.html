@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minhas Caixinhas de Reserva</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+
+    <style>
+        /* --- ESTILOS GERAIS --- */
+        body {
+            font-family: 'Roboto', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            background-color: #f0f4f8;
+            color: #333;
+            line-height: 1.4;
+        }
+        header {
+            background-color: #1e3a8a; 
+            color: white;
+            padding: 20px 15px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            display: flex;
+            align-items: center;
+        }
+        h1 { margin: 0; font-size: 1.6em; font-weight: 500; }
+        main {
+            padding: 15px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        /* --- MENU LATERAL (SIDEBAR) - ESTILO MODERNO --- */
+        #sidebar {
+            height: 100%;
+            width: 0; 
+            position: fixed;
+            z-index: 30; 
+            top: 0;
+            left: 0;
+            background: linear-gradient(180deg, #f0f4f8 0%, #ffffff 100%);
+            overflow-x: hidden;
+            transition: 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            padding-top: 60px;
+            box-shadow: 5px 0 15px rgba(0,0,0,0.2);
+            border-right: 1px solid #e0e7ff;
+        }
+        #sidebar.open {
+            width: 280px; 
+        }
+        #sidebar .menu-item {
+            display: flex;
+            align-items: center;
+            padding: 18px 15px 18px 30px;
+            text-decoration: none;
+            font-size: 1.1em;
+            color: #1e3a8a;
+            transition: 0.2s;
+            border-left: 5px solid transparent;
+            font-weight: 500;
+        }
+        #sidebar .menu-item:hover, #sidebar .menu-item.active {
+            color: #3b82f6;
+            background-color: #e0e7ff;
+            border-left: 5px solid #3b82f6;
+        }
+        #sidebar .menu-item span.icon {
+            font-size: 1.3em;
+            margin-right: 15px;
+            min-width: 20px;
+        }
+        #menu-title {
+            padding: 0 30px 15px;
+            font-weight: 700;
+            color: #475569;
+            font-size: 0.9em;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid #e2e8f0;
+            margin-bottom: 10px;
+        }
+        #close-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            font-size: 2.2em;
+            cursor: pointer;
+            color: #64748b;
+        }
+        /* Botão de abrir menu no header */
+        #menu-toggle-btn {
+            font-size: 1.8em;
+            cursor: pointer;
+            color: white;
+            margin-right: 15px;
+            padding: 0 5px;
+            transition: opacity 0.3s;
+        }
+        
+        /* --- SETA DE VOLTAR AO MENU (Oculto por padrão) --- */
+        #back-arrow-container {
+            position: fixed;
+            top: 18px;
+            left: 15px;
+            z-index: 25; 
+            opacity: 0;
+            pointer-events: none; 
+            transition: opacity 0.3s;
+        }
+        #back-arrow-container.show {
+            opacity: 1;
+            pointer-events: all; 
+        }
+        #back-arrow-container button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.2em;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #back-arrow-container button span {
+            margin-left: 8px;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+        
+        /* --- ESTILOS DE CAIXINHAS (MANTIDOS) --- */
+        #connection-status {
+            font-size: 0.85em;
+            text-align: center;
+            margin-bottom: 10px;
+            padding: 5px;
+            border-radius: 6px;
+            background-color: #ffe0b2; 
+            color: #e65100;
+            font-weight: 600;
+        }
+        .status-success {
+            background-color: #e8f5e9 !important;
+            color: #2e7d32 !important;
+        }
+        #goal-summary {
+            display: flex;
+            flex-wrap: wrap; 
+            justify-content: space-between;
+            margin-bottom: 25px;
+            text-align: center;
+            gap: 15px; 
+        }
+        .goal-item {
+            padding: 15px;
+            border-radius: 12px;
+            background-color: white;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+            width: 47%; 
+            box-sizing: border-box; 
+            border-bottom: 3px solid #1e3a8a;
+        }
+        .goal-item.monthly {
+            border-bottom: 3px solid #3b82f6; 
+        }
+        .goal-label { 
+            font-size: 0.85em; 
+            color: #64748b; 
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        .goal-valor { 
+            font-size: 1.4em; 
+            font-weight: 700; 
+        }
+        .goal-ok { color: #10b981; } 
+        .goal-alerta { color: #ef4444; } 
+        .caixinha-card {
+            background-color: white;
+            margin-bottom: 15px;
+            border-radius: 12px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+            border: 1px solid #e2e8f0;
+            transition: box-shadow 0.2s;
+        }
+        .caixinha-header {
+            display: grid;
+            grid-template-columns: 1fr 2fr 0.2fr; 
+            padding: 15px;
+            cursor: pointer;
+            gap: 10px;
+            align-items: center;
+        }
+        .caixinha-details {
+            padding: 0 15px 15px;
+            display: none; 
+            border-top: 1px solid #f1f5f9;
+        }
+        .caixinha-card.expanded .caixinha-details {
+            display: block; 
+        }
+        .month-entry {
+            display: grid;
+            grid-template-columns: 1fr 1fr 0.3fr 1fr 0.3fr; 
+            gap: 5px;
+            padding: 10px 0;
+            border-bottom: 1px dashed #e2e8f0;
+            align-items: center;
+            font-size: 0.9em;
+        }
+        .input-dep {
+            padding: 8px;
+            border: 1px solid #cbd5e1; 
+            border-radius: 6px;
+            text-align: right;
+            direction: ltr; 
+        }
+        .input-dep:focus, .check-button:focus {
+            outline: 2px solid #3b82f6;
+            outline-offset: 1px;
+        }
+        .check-button {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1em;
+            transition: background-color 0.2s;
+            margin: 0 auto;
+        }
+        .check-pending { background-color: #fecaca; color: #dc2626; }
+        .check-confirmed { background-color: #a7f3d0; color: #059669; }
+        .action-button {
+            width: 100%;
+            padding: 12px;
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            margin-top: 15px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.2s;
+        }
+    </style>
+</head>
+<body>
+    
+    <div id="sidebar">
+        <span id="close-btn" onclick="closeSidebar()">&times;</span>
+        <div id="menu-title">
+            NAVEGAÇÃO
+        </div>
+        <a href="caixinha.html" class="menu-item active"> 
+            <span class="icon">🏦</span> Minhas Caixinhas
+        </a>
+        <a href="metas_financeiras_fim.html" class="menu-item">
+            <span class="icon">🎯</span> Metas Financeiras
+        </a>
+        <a href="index.html" class="menu-item">
+            <span class="icon">🏠</span> Menu Principal
+        </a>
+    </div>
+
+    <div id="back-arrow-container">
+        <button onclick="openSidebar()">
+            &#9664; <span>Menu</span>
+        </button>
+    </div>
+
+    <div id="main-content">
+        <header>
+            <span id="menu-toggle-btn" onclick="openSidebar()">&#9776;</span>
+            <h1>🏦 Minhas Caixinhas de Reserva</h1>
+        </header>
+
+        <main>
+            
+            <div id="connection-status">
+                Aguardando inicialização...
+            </div>
+            
+            <div id="goal-summary">
+                <div class="goal-item"><div class="goal-label">OBJETIVO TOTAL GERAL</div><div class="goal-valor" id="meta-total-geral-display">R$ 0.00</div></div>
+                <div class="goal-item"><div class="goal-label">SALDO ATUAL (SÓ CHECK)</div><div class="goal-valor" id="acumulado-total-geral-display">R$ 0.00</div></div>
+                <div class="goal-item monthly"><div class="goal-label">PREVISTO TOTAL (MÊS)</div><div class="goal-valor" id="previsto-mensal-display">R$ 0.00</div></div>
+                <div class="goal-item monthly"><div class="goal-label">REALIZADO (CHECK)</div><div class="goal-valor" id="realizado-mensal-display">R$ 0.00</div></div>
+            </div>
+            
+            <section id="caixinhas-list">
+            </section>
+
+            <button class="action-button" onclick="saveCaixinhasData()" style="background-color: #10b981;">
+                💾 Salvar Alterações
+            </button>
+
+        </main>
+    </div> <script>
+        // --- FUNÇÕES DE NAVEGAÇÃO ---
+        function openSidebar() {
+            document.getElementById("sidebar").classList.add("open");
+            document.getElementById("menu-toggle-btn").style.opacity = '0';
+            document.getElementById("back-arrow-container").classList.add('show');
+        }
+        function closeSidebar() {
+            document.getElementById("sidebar").classList.remove("open");
+            document.getElementById("menu-toggle-btn").style.opacity = '1';
+            document.getElementById("back-arrow-container").classList.remove('show');
+        }
+
+        // --- 1. CONFIGURAÇÃO FIREBASE ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyAqwWpsjB2X6IRcdd-nH1npWrc5zlksyqE",
+            authDomain: "manute-229e7.firebaseapp.com",
+            projectId: "manute-229e7",
+            storageBucket: "manute-229e7.firebasestorage.app",
+            messagingSenderId: "559462971956",
+            appId: "1:559462971956:web:2dfe867974b0a04f852861"
+        };
+        
+        let db;
+        const DOC_ID_CAIXINHAS = 'caixinhas_data'; 
+        const COLLECTION_NAME = 'budget_app_data'; 
+        const LOCAL_STORAGE_KEY_CAIXINHAS = 'caixinhasData';
+        
+        const CURRENT_MONTH_YEAR = 'Dezembro 2025'; 
+        let currentFocusElementId = null; 
+        let expandedCaixinhaIds = []; 
+
+        try {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.firestore();
+            document.getElementById('connection-status').textContent = '✅ Conexão Firebase OK.';
+            document.getElementById('connection-status').classList.add('status-success');
+        } catch (e) {
+            console.error("Erro na inicialização do Firebase:", e);
+            document.getElementById('connection-status').textContent = '❌ Erro no Firebase. Usando armazenamento local.';
+        }
+        
+        // --- 2. DADOS INICIAIS ---
+        
+        function generateNextYearMonths() {
+            const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+            const entries = [];
+            
+            entries.push({ mes: `Dezembro 2025`, dep1: 0, okDep1: false, dep2: 0, okDep2: false });
+
+            const nextYear = 2026;
+            months.forEach(month => {
+                entries.push({ mes: `${month} ${nextYear}`, dep1: 0, okDep1: false, dep2: 0, okDep2: false });
+            });
+            return entries;
+        }
+
+        const DADOS_INICIAIS_CAIXINHAS = [
+            {
+                nome: "Viagem", metaTotal: 0, 
+                entradasMensais: generateNextYearMonths().map(entry => ({ 
+                    ...entry,
+                    ...(entry.mes === 'Janeiro 2026' && { dep1: 180.00, dep2: 50.00 }),
+                    ...(entry.mes === 'Fevereiro 2026' && { dep1: 150.00 }),
+                })), acumuladoReal: 0 
+            },
+            {
+                nome: "Reserva", metaTotal: 0, 
+                entradasMensais: generateNextYearMonths().map(entry => ({ 
+                    ...entry, 
+                    ...(entry.mes === 'Dezembro 2025' && { dep1: 4000.00, dep2: 2500.00, okDep1: true, okDep2: false }),
+                    ...(entry.mes === 'Janeiro 2026' && { dep1: 650.00, dep2: 0 }),
+                })), acumuladoReal: 0 
+            },
+            {
+                nome: "Evitar", metaTotal: 0, 
+                entradasMensais: generateNextYearMonths().map(entry => ({ 
+                    ...entry, 
+                    ...(entry.mes === 'Janeiro 2026' && { dep1: 80.99, okDep1: true, dep2: 100.00, okDep2: true }),
+                })), acumuladoReal: 0 
+            }
+        ];
+        
+        let caixinhasData = []; 
+
+        // --- 3. LÓGICA DE MANIPULAÇÃO E CÁLCULO ---
+        
+        function parseInput(value) {
+            if (typeof value === 'string') {
+                return parseFloat(value.replace(/\./g, '').replace(',', '.')) || 0;
+            }
+            return parseFloat(value) || 0;
+        }
+        
+        function formatCurrency(value, forInput = false) {
+            if (forInput) {
+                 return value.toFixed(2).replace('.', ',');
+            }
+            return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function saveExpandedState() {
+            expandedCaixinhaIds = Array.from(document.querySelectorAll('.caixinha-card.expanded')).map(card => card.id);
+        }
+
+        function restoreExpandedState() {
+            expandedCaixinhaIds.forEach(id => {
+                const card = document.getElementById(id);
+                if (card) {
+                    card.classList.add('expanded');
+                }
+            });
+        }
+        
+        function toggleDayDetails(index) {
+            const card = document.getElementById(`caixinha-card-${index}`);
+            card.classList.toggle('expanded');
+        }
+
+        async function loadCaixinhasData() {
+            const storedData = localStorage.getItem(LOCAL_STORAGE_KEY_CAIXINHAS);
+            if (storedData) { return JSON.parse(storedData); }
+            return DADOS_INICIAIS_CAIXINHAS;
+        }
+
+        async function saveCaixinhasData() {
+            calculateAccumulatedTotals(); 
+            localStorage.setItem(LOCAL_STORAGE_KEY_CAIXINHAS, JSON.stringify(caixinhasData));
+            document.getElementById('connection-status').textContent = '✅ Dados das Caixinhas salvos no Local Storage.';
+        }
+
+        function calculateAccumulatedTotals() {
+            let objetivoTotalGeral = 0; 
+            let acumuladoRealGeralChecked = 0;
+            let previstoMensalTotal = 0;
+            let realizadoMensalTotalChecked = 0;
+
+            caixinhasData.forEach(caixinha => {
+                let acumuladoCaixinha = 0;
+                let objetivoCaixinha = 0; 
+                
+                caixinha.entradasMensais.forEach(mes => {
+                    const dep1Valor = (Number(mes.dep1) || 0);
+                    const dep2Valor = (Number(mes.dep2) || 0);
+
+                    objetivoCaixinha += dep1Valor + dep2Valor;
+
+                    if (mes.okDep1) { acumuladoCaixinha += dep1Valor; }
+                    if (mes.okDep2) { acumuladoCaixinha += dep2Valor; }
+
+                    if (mes.mes === CURRENT_MONTH_YEAR) {
+                        previstoMensalTotal += dep1Valor + dep2Valor;
+                        
+                        if (mes.okDep1) { realizadoMensalTotalChecked += dep1Valor; }
+                        if (mes.okDep2) { realizadoMensalTotalChecked += dep2Valor; }
+                    }
+                });
+                
+                caixinha.metaTotal = Number(objetivoCaixinha.toFixed(2));
+                caixinha.acumuladoReal = Number(acumuladoCaixinha.toFixed(2));
+                
+                objetivoTotalGeral += caixinha.metaTotal;
+                acumuladoRealGeralChecked += caixinha.acumuladoReal; 
+            });
+            
+            renderGoalSummary(objetivoTotalGeral, acumuladoRealGeralChecked, previstoMensalTotal, realizadoMensalTotalChecked);
+        }
+
+        function renderGoalSummary(metaTotal, acumuladoRealChecked, previstoMensal, realizadoMensalChecked) {
+            document.getElementById('meta-total-geral-display').textContent = `R$ ${formatCurrency(metaTotal)}`;
+            document.getElementById('acumulado-total-geral-display').textContent = `R$ ${formatCurrency(acumuladoRealChecked)}`;
+            
+            const acumuladoGeralDisplay = document.getElementById('acumulado-total-geral-display');
+            acumuladoGeralDisplay.classList.remove('goal-ok', 'goal-alerta');
+            acumuladoGeralDisplay.classList.add(metaTotal > 0 && acumuladoRealChecked >= metaTotal ? 'goal-ok' : 'goal-alerta');
+            
+            document.getElementById('previsto-mensal-display').textContent = `R$ ${formatCurrency(previstoMensal)}`;
+            document.getElementById('realizado-mensal-display').textContent = `R$ ${formatCurrency(realizadoMensalChecked)}`;
+            
+            const realizadoMensalDisplay = document.getElementById('realizado-mensal-display');
+            realizadoMensalDisplay.classList.remove('goal-ok', 'goal-alerta');
+            realizadoMensalDisplay.classList.add(realizadoMensalChecked >= previstoMensal && previstoMensal > 0 ? 'goal-ok' : 'goal-alerta');
+        }
+        
+        function handleDepositChange(element) {
+            saveExpandedState(); 
+            currentFocusElementId = element.id;
+
+            const caixinhaIndex = parseInt(element.dataset.caixinha);
+            const mesIndex = parseInt(element.dataset.mes);
+            const field = element.dataset.field; 
+            
+            const valor = parseInput(element.value);
+
+            caixinhasData[caixinhaIndex].entradasMensais[mesIndex][field] = valor;
+            
+            if (field === 'dep1') {
+                caixinhasData[caixinhaIndex].entradasMensais[mesIndex].okDep1 = false;
+            } else if (field === 'dep2') {
+                caixinhasData[caixinhaIndex].entradasMensais[mesIndex].okDep2 = false;
+            }
+
+            calculateAccumulatedTotals();
+            renderCaixinhasPage(); 
+        }
+
+        function handleBaixaToggle(event, element) {
+            event.stopPropagation();
+            event.preventDefault();
+
+            saveExpandedState(); 
+            currentFocusElementId = element.id;
+
+            const caixinhaIndex = parseInt(element.dataset.caixinha);
+            const mesIndex = parseInt(element.dataset.mes);
+            const fieldOk = element.dataset.fieldOk; 
+            const currentStatus = caixinhasData[caixinhaIndex].entradasMensais[mesIndex][fieldOk];
+            
+            caixinhasData[caixinhaIndex].entradasMensais[mesIndex][fieldOk] = !currentStatus;
+
+            calculateAccumulatedTotals();
+            renderCaixinhasPage(); 
+        }
+
+
+        function renderCaixinhasPage() {
+            const listContainer = document.getElementById('caixinhas-list');
+            listContainer.innerHTML = '';
+            
+            calculateAccumulatedTotals(); 
+
+            caixinhasData.forEach((caixinha, caixinhaIndex) => {
+                const card = document.createElement('div');
+                card.className = 'caixinha-card';
+                card.id = `caixinha-card-${caixinhaIndex}`;
+
+                const meta = caixinha.metaTotal;
+                const acumulado = caixinha.acumuladoReal;
+                const percentual = meta > 0 ? Math.min(100, (acumulado / meta) * 100) : 0; 
+                const progressClass = acumulado >= meta ? 'goal-ok' : '';
+
+                let entriesHTML = '';
+
+                entriesHTML += `
+                    <div class="month-entry" style="font-weight: 700; background-color: #f1f5f9; border-bottom: 2px solid #e2e8f0;">
+                        <div class="month-name">Mês</div>
+                        <div style="text-align: right;">Dep. 1 (R$)</div>
+                        <div style="text-align: center;">OK</div>
+                        <div style="text-align: right;">Dep. 2 (R$)</div>
+                        <div style="text-align: center;">OK</div>
+                    </div>
+                `;
+
+                caixinha.entradasMensais.forEach((mes, mesIndex) => {
+                    const isConfirmed1 = mes.okDep1;
+                    const checkClass1 = isConfirmed1 ? 'check-confirmed' : 'check-pending';
+                    const checkIcon1 = isConfirmed1 ? '✔' : '...'; 
+                    
+                    const isConfirmed2 = mes.okDep2;
+                    const checkClass2 = isConfirmed2 ? 'check-confirmed' : 'check-pending';
+                    const checkIcon2 = isConfirmed2 ? '✔' : '...'; 
+                    
+                    const input1Id = `dep1-${caixinhaIndex}-${mesIndex}`;
+                    const input2Id = `dep2-${caixinhaIndex}-${mesIndex}`;
+                    const check1Id = `check1-${caixinhaIndex}-${mesIndex}`;
+                    const check2Id = `check2-${caixinhaIndex}-${mesIndex}`;
+                    
+                    const dep1ValueFormatted = formatCurrency(Number(mes.dep1) || 0, true);
+                    const dep2ValueFormatted = formatCurrency(Number(mes.dep2) || 0, true);
+
+
+                    entriesHTML += `
+                        <div class="month-entry">
+                            <div class="month-name">${mes.mes}</div>
+                            
+                            <input type="text" class="input-dep" placeholder="Dep. 1" id="${input1Id}"
+                                value="${dep1ValueFormatted}" 
+                                data-caixinha="${caixinhaIndex}" data-mes="${mesIndex}" data-field="dep1" 
+                                onchange="handleDepositChange(this)" onfocus="this.select()">
+                            
+                            <button class="check-button ${checkClass1}" id="${check1Id}"
+                                data-caixinha="${caixinhaIndex}" data-mes="${mesIndex}" data-field-ok="okDep1" 
+                                onclick="handleBaixaToggle(event, this)">
+                                ${checkIcon1}
+                            </button>
+
+                            <input type="text" class="input-dep" placeholder="Dep. 2" id="${input2Id}"
+                                value="${dep2ValueFormatted}" 
+                                data-caixinha="${caixinhaIndex}" data-mes="${mesIndex}" data-field="dep2" 
+                                onchange="handleDepositChange(this)" onfocus="this.select()">
+                            
+                            <button class="check-button ${checkClass2}" id="${check2Id}"
+                                data-caixinha="${caixinhaIndex}" data-mes="${mesIndex}" data-field-ok="okDep2"
+                                onclick="handleBaixaToggle(event, this)">
+                                ${checkIcon2}
+                            </button>
+                        </div>
+                    `;
+                });
+
+                card.innerHTML = `
+                    <div class="caixinha-header" onclick="toggleDayDetails(${caixinhaIndex})">
+                        <div class="caixinha-name">${caixinha.nome}</div>
+                        <div class="caixinha-progress">
+                            Objetivo: R$ ${formatCurrency(meta)}<br>
+                            Saldo Atual: <span class="${progressClass}">R$ ${formatCurrency(acumulado)}</span>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${percentual.toFixed(0)}%;"></div>
+                            </div>
+                        </div>
+                        <div class="arrow-container">
+                            <span class="arrow">&#9658;</span>
+                        </div>
+                    </div>
+
+                    <div class="caixinha-details">
+                        ${entriesHTML}
+                    </div>
+                `;
+
+                listContainer.appendChild(card);
+            });
+            
+            restoreExpandedState();
+
+            if (currentFocusElementId) {
+                const elementToFocus = document.getElementById(currentFocusElementId);
+                if (elementToFocus) {
+                    elementToFocus.focus();
+                }
+                currentFocusElementId = null; 
+            }
+        }
+        
+        // --- INICIALIZAÇÃO ---
+
+        async function initApp() {
+            caixinhasData = await loadCaixinhasData();
+            renderCaixinhasPage(); 
+        }
+
+        document.addEventListener('DOMContentLoaded', initApp);
+
+    </script>
+</body>
+</html>

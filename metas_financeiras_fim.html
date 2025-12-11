@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orçamento Diário (FIREBASE ESTÁVEL)</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    
+    <style>
+        /* --- ESTILOS GERAIS --- */
+        body {
+            font-family: 'Roboto', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            background-color: #f0f4f8;
+            color: #333;
+            line-height: 1.4;
+        }
+        header {
+            background-color: #1e3a8a; 
+            color: white;
+            padding: 20px 15px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            display: flex;
+            align-items: center;
+        }
+        h1 { margin: 0; font-size: 1.6em; font-weight: 500; }
+        main {
+            padding: 15px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* --- MENU LATERAL (SIDEBAR) - ESTILO MODERNO --- */
+        #sidebar {
+            height: 100%;
+            width: 0; 
+            position: fixed;
+            z-index: 30; 
+            top: 0;
+            left: 0;
+            background: linear-gradient(180deg, #f0f4f8 0%, #ffffff 100%);
+            overflow-x: hidden;
+            transition: 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            padding-top: 60px;
+            box-shadow: 5px 0 15px rgba(0,0,0,0.2);
+            border-right: 1px solid #e0e7ff;
+        }
+        #sidebar.open { width: 280px; }
+        #sidebar .menu-item {
+            display: flex;
+            align-items: center;
+            padding: 18px 15px 18px 30px;
+            text-decoration: none;
+            font-size: 1.1em;
+            color: #1e3a8a;
+            transition: 0.2s;
+            border-left: 5px solid transparent;
+            font-weight: 500;
+        }
+        #sidebar .menu-item:hover, #sidebar .menu-item.active {
+            color: #3b82f6;
+            background-color: #e0e7ff;
+            border-left: 5px solid #3b82f6;
+        }
+        #sidebar .menu-item span.icon {
+            font-size: 1.3em;
+            margin-right: 15px;
+            min-width: 20px;
+        }
+        #menu-title {
+            padding: 0 30px 15px;
+            font-weight: 700;
+            color: #475569;
+            font-size: 0.9em;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid #e2e8f0;
+            margin-bottom: 10px;
+        }
+        #close-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            font-size: 2.2em;
+            cursor: pointer;
+            color: #64748b;
+        }
+        /* Botão de abrir menu no header */
+        #menu-toggle-btn {
+            font-size: 1.8em;
+            cursor: pointer;
+            color: white;
+            margin-right: 15px;
+            padding: 0 5px;
+            transition: opacity 0.3s;
+        }
+        
+        /* --- SETA DE VOLTAR AO MENU (Oculto por padrão) --- */
+        #back-arrow-container {
+            position: fixed;
+            top: 18px;
+            left: 15px;
+            z-index: 25; 
+            opacity: 0;
+            pointer-events: none; 
+            transition: opacity 0.3s;
+        }
+        #back-arrow-container.show {
+            opacity: 1;
+            pointer-events: all; 
+        }
+        #back-arrow-container button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.2em;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #back-arrow-container button span {
+            margin-left: 8px;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+        
+        /* --- ESTILOS DE ORÇAMENTO DIÁRIO (MANTIDOS) --- */
+        #connection-status {
+            font-size: 0.85em;
+            text-align: center;
+            margin-bottom: 10px;
+            padding: 5px;
+            border-radius: 6px;
+            background-color: #ffe0b2;
+            color: #e65100;
+            font-weight: 600;
+        }
+        .status-success { background-color: #e8f5e9 !important; color: #2e7d32 !important; }
+        #controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.08);
+        }
+        #current-month-display { font-size: 1.2em; font-weight: 600; color: #1e3a8a; }
+        .nav-btn {
+            background: #e0e7ff;
+            color: #1e3a8a;
+            border: none;
+            border-radius: 6px;
+            font-size: 1.2em;
+            cursor: pointer;
+            padding: 8px 12px;
+            transition: background-color 0.2s;
+        }
+        .nav-btn:hover { background-color: #c7d2fe; }
+        #saldo-summary {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+        .saldo-item {
+            padding: 15px;
+            border-radius: 12px;
+            background-color: white;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+            width: 48%;
+            border-bottom: 3px solid #1e3a8a;
+        }
+        .saldo-label { font-size: 0.85em; color: #64748b; margin-bottom: 5px; font-weight: 500; }
+        .saldo-valor { font-size: 1.6em; font-weight: 700; }
+        .saldo-ok { color: #10b981; }
+        .saldo-alerta { color: #ef4444; }
+        #gasto-projection-summary {
+            margin-bottom: 25px;
+            background-color: #ffffff;
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+        }
+        .gasto-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px dashed #f1f5f9;
+        }
+        .gasto-row:last-child { border-bottom: none; }
+        .gasto-row div { font-size: 0.9em; }
+        .gasto-label-total { font-weight: 600; color: #1e3a8a; }
+        #alert-area {
+            padding: 15px;
+            border-radius: 12px;
+            display: none;
+            background-color: #f97316;
+            color: white;
+            font-weight: 600;
+            margin-bottom: 20px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .day-card {
+            background-color: white;
+            margin-bottom: 15px;
+            border-radius: 12px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+            border: 1px solid #e2e8f0;
+            transition: box-shadow 0.2s;
+        }
+        .day-card:hover { box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
+        .day-card.status-passado { border: 1px solid #10b981; }
+        .day-card.status-futuro, .day-card.status-hoje { border: 1px solid #3b82f6; }
+        .day-card.saldo-alerta { border: 2px solid #ef4444; }
+        .day-card.economia-sucesso { background-color: #f0fdf4; box-shadow: 0 0 10px rgba(16, 185, 129, 0.4); }
+        .day-header {
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            grid-template-rows: auto;
+            padding: 15px;
+            cursor: pointer;
+            gap: 10px;
+        }
+        .day-info { font-size: 1.2em; font-weight: 700; color: #1e3a8a; align-self: center; display: flex; flex-direction: column; text-align: center; }
+        .day-date { font-size: 1.4em; line-height: 1; }
+        .day-date-label { font-size: 0.8em; font-weight: 500; color: #64748b; }
+        .day-status { font-size: 0.85em; color: #64748b; text-align: left; line-height: 1.6; }
+        .saldo-display { font-weight: 600; color: #333; }
+        .gasto-display { font-weight: 600; color: #f97316; font-size: 1.0em; }
+        .arrow-container { align-self: center; text-align: right; }
+        .arrow { font-size: 1.2em; transition: transform 0.3s; color: #94a3b8; }
+        .expanded .arrow { transform: rotate(90deg); }
+        .day-details { padding: 0 15px 15px; display: none; border-top: 1px solid #f1f5f9; }
+        .day-card.expanded .day-details { display: block; }
+        .gastos-group { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 10px; padding: 10px 0; }
+        .input-item { flex-grow: 1; min-width: calc(50% - 15px); }
+        .input-item label { display: block; font-size: 0.75em; color: #64748b; margin-bottom: 4px; font-weight: 500; }
+        .input-data {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            box-sizing: border-box;
+            text-align: right;
+            font-weight: 600;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .input-data:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+            outline: none;
+        }
+        .action-button {
+            width: 100%;
+            padding: 12px;
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            margin-top: 15px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.2s;
+        }
+        .action-button:hover { background-color: #2563eb; }
+        .btn-concluido { background-color: #10b981; }
+        .btn-concluido:hover { background-color: #059669; }
+
+        /* --- MODAL (Estilos Mantidos) --- */
+        #planning-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 20px;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 450px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e2e8f0;
+            margin: -20px -20px 15px -20px;
+            padding: 15px 20px;
+            background-color: #f8fafc;
+            border-top-left-radius: 16px;
+            border-top-right-radius: 16px;
+        }
+        .modal-header h2 { color: #1e3a8a; margin: 0; font-size: 1.4em; }
+        .modal-close {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.8em;
+            color: #94a3b8;
+            padding: 0;
+            transition: color 0.2s;
+        }
+        .modal-close:hover { color: #333; }
+        .modal-save-btn {
+            background-color: #10b981;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .modal-save-btn:hover { background-color: #059669; }
+        .modal-input-group { margin-bottom: 15px; }
+        .modal-input-group label { display: block; margin-bottom: 5px; font-weight: 600; color: #333; }
+        .modal-input-group input {
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            box-sizing: border-box;
+            width: 100%;
+        }
+        .btn-month-action {
+            background-color: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 15px;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+        .btn-month-action:hover { background-color: #dc2626; }
+    </style>
+</head>
+<body>
+    
+    <div id="sidebar">
+        <span id="close-btn" onclick="closeSidebar()">&times;</span>
+        <div id="menu-title">
+            NAVEGAÇÃO
+        </div>
+        <a href="caixinha.html" class="menu-item"> 
+            <span class="icon">🏦</span> Minhas Caixinhas
+        </a>
+        <a href="metas_financeiras_fim.html" class="menu-item active">
+            <span class="icon">🎯</span> Metas Financeiras
+        </a>
+        <a href="index.html" class="menu-item">
+            <span class="icon">🏠</span> Menu Principal
+        </a>
+    </div>
+
+    <div id="back-arrow-container">
+        <button onclick="openSidebar()">
+            &#9664; <span>Menu</span>
+        </button>
+    </div>
+
+    <div id="main-content">
+        <header>
+            <span id="menu-toggle-btn" onclick="openSidebar()">&#9776;</span>
+            <h1>💵 Orçamento Pessoal Diário</h1>
+        </header>
+
+        <main>
+            <div id="connection-status">
+                Aguardando carregamento do Firebase...
+            </div>
+
+            <div id="controls">
+                <button class="nav-btn" onclick="changeMonth(-1)">&#9664; Anterior</button>
+                <div id="current-month-display"></div>
+                <button class="nav-btn" onclick="changeMonth(1)">Próximo &#9654;</button>
+            </div>
+
+            <div id="saldo-summary">
+                <div class="saldo-item">
+                    <div class="saldo-label">SALDO COMUM PROJETADO (Final do Mês)</div>
+                    <div class="saldo-valor" id="saldo-comum-display">R$ 0.00</div>
+                </div>
+                <div class="saldo-item">
+                    <div class="saldo-label">SALDO VR PROJETADO (Final do Mês)</div>
+                    <div class="saldo-valor" id="saldo-vr-display">R$ 0.00</div>
+                </div>
+            </div>
+            
+            <div id="gasto-projection-summary">
+                <div class="gasto-row">
+                    <div class="gasto-label-total">Orçamento Mensal Total</div>
+                    <div id="orcamento-total-display">R$ 0.00</div>
+                </div>
+                <div class="gasto-row">
+                    <div class="gasto-label-total">Gasto Acumulado (Passado)</div>
+                    <div id="gasto-real-acumulado-display" class="saldo-alerta">R$ 0.00</div>
+                </div>
+                <div class="gasto-row">
+                    <div class="gasto-label-total">Saldo Remanescente para Gastar</div>
+                    <div id="saldo-gasto-remanescente-display" class="saldo-ok">R$ 0.00</div>
+                </div>
+            </div>
+            
+            <div id="alert-area"></div>
+
+            <button class="action-button" onclick="openPlanningModal()" style="background-color: #10b981;">
+                💰 Planejar Depósitos e Saldo Inicial
+            </button>
+
+            <section id="daily-budget-list">
+            </section>
+
+        </main>
+
+        <div id="planning-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Planejamento do Mês</h2>
+                    <div>
+                        <button class="modal-save-btn" onclick="savePlanningData()">SALVAR</button>
+                        <button class="modal-close" onclick="closePlanningModal()">&#x2715;</button>
+                    </div>
+                </div>
+                <p>Insira seus saldos iniciais e depósitos previstos.</p>
+
+                <div class="modal-input-group">
+                    <label>Saldo Inicial Comum do Mês:</label>
+                    <input type="number" id="initial-saldo-comum" placeholder="R$ 0.00">
+                </div>
+                <div class="modal-input-group">
+                    <label>Saldo Inicial VR do Mês:</label>
+                    <input type="number" id="initial-saldo-vr" placeholder="R$ 0.00">
+                </div>
+
+                <div id="daily-deposits">
+                </div>
+                
+                <div style="margin-top:20px; text-align:center;">
+                    <button onclick="resetMonth()" class="btn-month-action">Zerar Gastos e Depósitos</button>
+                </div>
+            </div>
+        </div>
+    </div> <script>
+        // --- FUNÇÕES DE NAVEGAÇÃO ---
+        function openSidebar() {
+            document.getElementById("sidebar").classList.add("open");
+            document.getElementById("menu-toggle-btn").style.opacity = '0';
+            document.getElementById("back-arrow-container").classList.add('show');
+        }
+        function closeSidebar() {
+            document.getElementById("sidebar").classList.remove("open");
+            document.getElementById("menu-toggle-btn").style.opacity = '1';
+            document.getElementById("back-arrow-container").classList.remove('show');
+        }
+        
+        // --- CÓDIGO DE LÓGICA DE ORÇAMENTO DIÁRIO (MANTIDO) ---
+
+        // 2. Configuração e Inicialização do Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyAqwWpsjB2X6IRcdd-nH1npWrc5zlksyqE",
+            authDomain: "manute-229e7.firebaseapp.com",
+            projectId: "manute-229e7",
+            storageBucket: "manute-229e7.firebasestorage.app",
+            messagingSenderId: "559462971956",
+            appId: "1:559462971956:web:2dfe867974b0a04f852861"
+        };
+        
+        let db;
+        
+        try {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.firestore();
+            document.getElementById('connection-status').textContent = '✅ Conexão Firebase OK. Carregando dados...';
+            document.getElementById('connection-status').classList.add('status-success');
+        } catch (e) {
+            console.error("Erro na inicialização do Firebase:", e);
+            document.getElementById('connection-status').textContent = '❌ Erro no Firebase. Usando armazenamento local.';
+        }
+        
+        const DOC_ID = 'user_budget_data';
+        const COLLECTION_NAME = 'budget_app_data';
+
+        // Variáveis de Contexto
+        const TODAY = new Date();
+        const HOJE = TODAY.getDate();
+        const MES_ATUAL = TODAY.getMonth();
+        const ANO_ATUAL = TODAY.getFullYear();
+        const LOCAL_STORAGE_KEY = 'personalBudgetData';
+        
+        let currentDate = new Date(ANO_ATUAL, MES_ATUAL, 1);
+        let budgetData = [];
+
+        // --- FUNÇÕES DE UTILIDADE ---
+        function getDiaSemana(dia, mesIndex, ano) {
+            const date = new Date(ano, mesIndex, dia);
+            return date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+        }
+        function getDaysInMonth(month, year) {
+            return new Date(year, month + 1, 0).getDate();
+        }
+        function parseInput(value) {
+            return parseFloat(String(value).replace(',', '.')) || 0;
+        }
+
+        // --- PERSISTÊNCIA DE DADOS: FIREBASE/LOCAL STORAGE ---
+        async function saveToFirestore() {
+            if (!db) {
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(budgetData));
+                return;
+            }
+            try {
+                await db.collection(COLLECTION_NAME).doc(DOC_ID).set({
+                    data: budgetData
+                });
+                document.getElementById('connection-status').textContent = '✅ Dados salvos na Nuvem.';
+            } catch (e) {
+                console.error("Erro ao salvar no Firestore: ", e);
+                document.getElementById('connection-status').textContent = '⚠️ Falha ao salvar na Nuvem. Usando Local Storage.';
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(budgetData));
+            }
+        }
+
+        async function loadFromFirestore() {
+            if (db) {
+                try {
+                    const doc = await db.collection(COLLECTION_NAME).doc(DOC_ID).get();
+                    if (doc.exists) {
+                        const loadedData = doc.data().data;
+                        document.getElementById('connection-status').textContent = '✅ Dados carregados da Nuvem.';
+                        document.getElementById('connection-status').classList.add('status-success');
+                        return Array.isArray(loadedData) ? loadedData : [];
+                    } else {
+                       document.getElementById('connection-status').textContent = '✅ Conexão OK. Iniciando novos dados.';
+                       document.getElementById('connection-status').classList.add('status-success');
+                    }
+                } catch (e) {
+                    console.warn("Falha ao carregar do Firestore. Verifique as regras de segurança.", e);
+                    document.getElementById('connection-status').textContent = '⚠️ Falha de Leitura na Nuvem. Usando Local Storage.';
+                }
+            }
+            
+            const storedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+            if (storedData) {
+                try { return JSON.parse(storedData); } catch (e) { console.error("Erro ao carregar do Local Storage.", e); }
+            }
+            
+            return [{
+                mesNome: "Dezembro 2025",
+                mesIndex: 11,
+                ano: 2025,
+                saldoInicialComum: 500.00,
+                saldoInicialVr: 200.00,
+                dias: []
+            }];
+        }
+        
+        // --- GESTÃO DE DADOS DO MÊS ---
+        function initializeDays(monthData) {
+            const numDays = getDaysInMonth(monthData.mesIndex, monthData.ano);
+            if (monthData.dias.length === numDays) return;
+            
+            monthData.dias = [];
+            for (let i = 1; i <= numDays; i++) {
+                const isPastOnly = (monthData.mesIndex === MES_ATUAL && monthData.ano === ANO_ATUAL && i < HOJE);
+                
+                monthData.dias.push({
+                    dia: i,
+                    depositoComum: 0,
+                    depositoVr: 0,
+                    gastoComum: isPastOnly ? (i % 3 === 0 ? 55 : 65) : 0,
+                    gastoVr: 0,
+                    status: isPastOnly ? 'passado' : (i === HOJE ? 'hoje' : 'futuro')
+                });
+            }
+        }
+
+        function getMonthData() {
+            const month = currentDate.getMonth();
+            const year = currentDate.getFullYear();
+            let data = budgetData.find(d => d.mesIndex === month && d.ano === year);
+
+            if (!data) {
+                data = {
+                    mesNome: currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
+                    mesIndex: month,
+                    ano: year,
+                    saldoInicialComum: 0.00,
+                    saldoInicialVr: 0.00,
+                    dias: []
+                };
+                budgetData.push(data);
+                budgetData.sort((a, b) => a.ano * 12 + a.mesIndex - (b.ano * 12 + b.mesIndex));
+            }
+
+            initializeDays(data);
+            return data;
+        }
+
+        function updateNextMonthInitialSaldo() {
+            const currentMonth = getMonthData();
+            if (!currentMonth.dias || currentMonth.dias.length === 0) return;
+            
+            const lastDay = currentMonth.dias[currentMonth.dias.length - 1];
+            
+            const nextDate = new Date(currentMonth.ano, currentMonth.mesIndex + 1, 1);
+            const nextMonth = nextDate.getMonth();
+            const nextYear = nextDate.getFullYear();
+            
+            let nextMonthData = budgetData.find(d => d.mesIndex === nextMonth && d.ano === nextYear);
+
+            if (nextMonthData && lastDay) {
+                nextMonthData.saldoInicialComum = Number(lastDay.saldoPrevistoComum) || 0;
+                nextMonthData.saldoInicialVr = Number(lastDay.saldoPrevistoVr) || 0;
+            }
+        }
+        
+        // --- FUNÇÃO CENTRAL: RECALCULAR SALDOS ---
+        function recalcularSaldos() {
+            const monthData = getMonthData();
+            let saldoComumAnterior = Number(monthData.saldoInicialComum) || 0;
+            let saldoVrAnterior = Number(monthData.saldoInicialVr) || 0;
+            let alertaDisparado = false;
+            
+            let orcamentoTotal = 0;
+            let gastoRealAcumulado = 0;
+
+            monthData.dias.forEach((dia) => {
+                const isPassado = dia.status === 'passado';
+                
+                let entradasComum = Number(dia.depositoComum) || 0;
+                let entradasVr = Number(dia.depositoVr) || 0;
+                
+                let gastoComum = Number(dia.gastoComum) || 0;
+                let gastoVr = Number(dia.gastoVr) || 0;
+                
+                let gastoTotal = gastoComum + gastoVr;
+
+                // 1. Acumulado para o Resumo de Gastos
+                orcamentoTotal += gastoTotal;
+                if (isPassado) {
+                    gastoRealAcumulado += gastoTotal;
+                }
+
+                // 2. CÁLCULO DE SALDO DIÁRIO
+                dia.saldoPrevistoComum = Number((saldoComumAnterior + entradasComum - gastoComum).toFixed(2));
+                saldoComumAnterior = dia.saldoPrevistoComum;
+
+                dia.saldoPrevistoVr = Number((saldoVrAnterior + entradasVr - gastoVr).toFixed(2));
+                saldoVrAnterior = dia.saldoPrevistoVr;
+
+                if (dia.saldoPrevistoComum < 0 || dia.saldoPrevistoVr < 0) {
+                    alertaDisparado = true;
+                }
+            });
+
+            // 3. Atualizar resumo de Gastos
+            renderGastoSummary(orcamentoTotal, gastoRealAcumulado);
+
+            updateNextMonthInitialSaldo();
+            renderSummary(monthData);
+
+            const alertArea = document.getElementById('alert-area');
+            if (alertaDisparado) {
+                alertArea.style.display = 'block';
+                alertArea.textContent = '🛑 ALERTA: Saldo projetado negativo! Ajuste seus gastos para reequilibrar o orçamento.';
+            } else {
+                alertArea.style.display = 'none';
+            }
+        }
+        
+        // --- RENDERIZAÇÃO DO RESUMO DE GASTOS ---
+        function renderGastoSummary(orcamentoTotal, gastoRealAcumulado) {
+            const orcamentoTotalDisplay = document.getElementById('orcamento-total-display');
+            const gastoRealAcumuladoDisplay = document.getElementById('gasto-real-acumulado-display');
+            const saldoGastoRemanescenteDisplay = document.getElementById('saldo-gasto-remanescente-display');
+
+            const saldoRemanescente = orcamentoTotal - gastoRealAcumulado;
+
+            orcamentoTotalDisplay.textContent = `R$ ${orcamentoTotal.toFixed(2)}`;
+            gastoRealAcumuladoDisplay.textContent = `R$ ${gastoRealAcumulado.toFixed(2)}`;
+            saldoGastoRemanescenteDisplay.textContent = `R$ ${saldoRemanescente.toFixed(2)}`;
+
+            saldoGastoRemanescenteDisplay.className = saldoRemanescente < 0 ? 'saldo-alerta' : 'saldo-ok';
+            gastoRealAcumuladoDisplay.className = gastoRealAcumulado > orcamentoTotal ? 'saldo-alerta' : '';
+        }
+
+
+        // --- RENDERIZAÇÃO E LAYOUT ---
+        function toggleDayDetails(dayIndex) {
+            const card = document.getElementById(`day-card-${dayIndex}`);
+            card.classList.toggle('expanded');
+        }
+
+        function renderSummary(monthData) {
+            const lastDay = monthData.dias[monthData.dias.length - 1];
+            const saldoComum = lastDay ? lastDay.saldoPrevistoComum : monthData.saldoInicialComum;
+            const saldoVr = lastDay ? lastDay.saldoPrevistoVr : monthData.saldoInicialVr;
+
+            const saldoComumDisplay = document.getElementById('saldo-comum-display');
+            const saldoVrDisplay = document.getElementById('saldo-vr-display');
+
+            const finalComum = Number(saldoComum) || 0.00;
+            const finalVr = Number(saldoVr) || 0.00;
+
+            saldoComumDisplay.textContent = `R$ ${finalComum.toFixed(2)}`;
+            saldoComumDisplay.className = 'saldo-valor ' + (finalComum < 0 ? 'saldo-alerta' : 'saldo-ok');
+
+            saldoVrDisplay.textContent = `R$ ${finalVr.toFixed(2)}`;
+            saldoVrDisplay.className = 'saldo-valor ' + (finalVr < 0 ? 'saldo-alerta' : 'saldo-ok');
+        }
+
+        function renderDailyCards() {
+            const monthData = getMonthData();
+            const listContainer = document.getElementById('daily-budget-list');
+            const currentMonthDisplay = document.getElementById('current-month-display');
+            currentMonthDisplay.textContent = monthData.mesNome;
+            
+            listContainer.innerHTML = '';
+            
+            const fieldMapping = [
+                { field: 'gastoComum', label: 'Gasto Comum', class: 'input-data' },
+                { field: 'gastoVr', label: 'Gasto VR', class: 'input-data' }
+            ];
+
+            let tabIndexCounter = 1;
+            
+            if (!monthData.dias || !Array.isArray(monthData.dias)) return;
+
+            monthData.dias.forEach((dia) => {
+                const isPassado = dia.status === 'passado';
+                const isHoje = dia.status === 'hoje';
+                
+                let cardClass = isPassado ? 'status-passado' : 'status-futuro';
+                let statusEmoji = '';
+                
+                if (isPassado) {
+                    statusEmoji = '✔ Concluído';
+                    cardClass += ' economia-sucesso';
+                } else if (isHoje) {
+                    statusEmoji = 'Aberto (Hoje)';
+                } else {
+                    statusEmoji = 'Previsto';
+                }
+
+                const saldoComum = Number(dia.saldoPrevistoComum) || 0;
+                const saldoVr = Number(dia.saldoPrevistoVr) || 0;
+                
+                const gastoTotalDia = (Number(dia.gastoComum) || 0) + (Number(dia.gastoVr) || 0);
+
+                if (saldoComum < 0 || saldoVr < 0) {
+                    cardClass += ' saldo-alerta';
+                }
+
+                const card = document.createElement('div');
+                card.className = `day-card ${cardClass}`;
+                card.id = `day-card-${dia.dia}`;
+
+                const diaSemana = getDiaSemana(dia.dia, monthData.mesIndex, monthData.ano);
+                
+                const saldoDisplayComum = saldoComum.toFixed(2);
+                const saldoDisplayVr = saldoVr.toFixed(2);
+                const saldoClassComum = saldoComum < 0 ? 'saldo-alerta' : 'saldo-ok';
+                const saldoClassVr = saldoVr < 0 ? 'saldo-alerta' : 'saldo-ok';
+
+                let inputsHTML = '';
+                
+                fieldMapping.forEach(mapping => {
+                    const currentValue = dia[mapping.field];
+                    const formattedValue = (Number(currentValue) || 0).toFixed(2);
+                    
+                    inputsHTML += `
+                        <div class="input-item">
+                            <label>${mapping.label}</label>
+                            <input type="number"
+                                data-dia="${dia.dia}"
+                                data-field="${mapping.field}"
+                                class="input-data ${mapping.class}"
+                                value="${formattedValue}"
+                                onchange="updateValue(this)"
+                                tabindex="${tabIndexCounter++}">
+                        </div>
+                    `;
+                });
+
+                card.innerHTML = `
+                    <div class="day-header" onclick="toggleDayDetails(${dia.dia})">
+                        <div class="day-info">
+                            <span class="day-date">${dia.dia}</span>
+                            <span class="day-date-label">${diaSemana}</span>
+                        </div>
+                        
+                        <div class="day-status" style="text-align: center;">
+                            Gasto: <span class="gasto-display">R$ ${gastoTotalDia.toFixed(2)}</span><br>
+                            <span style="font-size: 0.75em; color: #64748b;">(Previsto/Real)</span>
+                        </div>
+
+                        <div class="day-status" style="text-align: right;">
+                            Comum: <span class="saldo-display ${saldoClassComum}">R$ ${saldoDisplayComum}</span><br>
+                            VR: <span class="saldo-display ${saldoClassVr}">R$ ${saldoDisplayVr}</span>
+                        </div>
+                        
+                        <div class="arrow-container">
+                            <span class="arrow">&#9658;</span>
+                        </div>
+                    </div>
+
+                    <div class="day-details">
+                        <div class="gastos-group">
+                            ${inputsHTML}
+                        </div>
+                        
+                        ${isHoje ?
+                            `<button class="action-button btn-concluido" onclick="marcarDiaPassado(${dia.dia})" tabindex="${tabIndexCounter++}">✔ MARCAR COMO CONCLUÍDO</button>`
+                            : ''}
+                        
+                        ${(isPassado || isHoje) ?
+                            `<button class="action-button" onclick="quickLaunch(${dia.dia})" style="background-color:#007bff; margin-top:5px;" tabindex="${tabIndexCounter++}">Lançamento Rápido</button>` : ''}
+                    </div>
+                `;
+
+                listContainer.appendChild(card);
+            });
+            saveToFirestore();
+        }
+        
+        // --- FUNÇÃO DE STATUS (MARCAR COMO PASSADO) ---
+        function marcarDiaPassado(dia) {
+            const monthData = getMonthData();
+            const diaIndex = dia - 1;
+            const diaData = monthData.dias[diaIndex];
+            
+            if (diaData.status !== 'passado') {
+                diaData.status = 'passado';
+            }
+            
+            recalcularSaldos();
+            renderDailyCards();
+        }
+
+
+        // --- FUNÇÕES DE INTERAÇÃO E MODAL ---
+
+        function updateValue(inputElement) {
+            const monthData = getMonthData();
+            const diaIndex = parseInt(inputElement.dataset.dia) - 1;
+            const field = inputElement.dataset.field;
+            const novoValor = parseInput(inputElement.value);
+
+            monthData.dias[diaIndex][field] = novoValor;
+
+            recalcularSaldos();
+            renderDailyCards();
+        }
+
+        function changeMonth(direction) {
+            currentDate.setMonth(currentDate.getMonth() + direction);
+            recalcularSaldos();
+            renderDailyCards();
+        }
+        
+        // --- FUNÇÕES DE PLANEJAMENTO/RECEITAS (MODAL) ---
+
+        function renderPlanningModalInputs() {
+            const monthData = getMonthData();
+            document.getElementById('initial-saldo-comum').value = (Number(monthData.saldoInicialComum) || 0).toFixed(2);
+            document.getElementById('initial-saldo-vr').value = (Number(monthData.saldoInicialVr) || 0).toFixed(2);
+
+            const dailyDepositsContainer = document.getElementById('daily-deposits');
+            dailyDepositsContainer.innerHTML = '<h3>Depósitos Previstos (Diário)</h3>';
+
+            monthData.dias.forEach((dia, index) => {
+                const diaSemana = getDiaSemana(dia.dia, monthData.mesIndex, monthData.ano);
+                
+                const group = document.createElement('div');
+                group.className = 'modal-input-group';
+                group.innerHTML = `
+                    <label>${diaSemana} - Dia ${dia.dia}:</label>
+                    <input type="number" data-dia="${dia.dia}" data-field="depositoComum" placeholder="Comum: R$ 0.00" value="${(Number(dia.depositoComum) || 0).toFixed(2)}" onchange="updatePlanning(this)">
+                    <input type="number" data-dia="${dia.dia}" data-field="depositoVr" placeholder="VR: R$ 0.00" value="${(Number(dia.depositoVr) || 0).toFixed(2)}" onchange="updatePlanning(this)">
+                `;
+                dailyDepositsContainer.appendChild(group);
+            });
+        }
+        
+        function updatePlanning(inputElement) {
+            const monthData = getMonthData();
+            const diaIndex = parseInt(inputElement.dataset.dia) - 1;
+            const field = inputElement.dataset.field;
+            const novoValor = parseInput(inputElement.value);
+            
+            monthData.dias[diaIndex][field] = novoValor;
+        }
+
+        function openPlanningModal() {
+            renderPlanningModalInputs();
+            document.getElementById('planning-modal').style.display = 'flex';
+            setTimeout(() => document.getElementById('initial-saldo-comum').focus(), 100);
+        }
+
+        function closePlanningModal() {
+            document.getElementById('planning-modal').style.display = 'none';
+        }
+
+        function savePlanningData() {
+            const monthData = getMonthData();
+            
+            monthData.saldoInicialComum = parseInput(document.getElementById('initial-saldo-comum').value);
+            monthData.saldoInicialVr = parseInput(document.getElementById('initial-saldo-vr').value);
+            
+            recalcularSaldos();
+            renderDailyCards();
+            closePlanningModal();
+        }
+
+        function resetMonth() {
+            if (!confirm("Tem certeza que deseja zerar todos os gastos e depósitos deste mês?")) return;
+
+            const monthData = getMonthData();
+            
+            monthData.saldoInicialComum = 0.00;
+            monthData.saldoInicialVr = 0.00;
+
+            monthData.dias.forEach(dia => {
+                dia.depositoComum = 0;
+                dia.depositoVr = 0;
+                dia.gastoComum = 0;
+                dia.gastoVr = 0;
+                dia.status = 'futuro';
+            });
+
+            alert(`Dados de ${monthData.mesNome} zerados com sucesso!`);
+            
+            recalcularSaldos();
+            renderDailyCards();
+        }
+        
+        function quickLaunch(dia) {
+            const monthData = getMonthData();
+            const diaIndex = dia - 1;
+            const diaData = monthData.dias[diaIndex];
+            
+            let gastoRealInput = prompt(`Dia ${dia}: Insira o Gasto (Comum):`, (Number(diaData.gastoComum) || 0).toFixed(2));
+            
+            if (gastoRealInput !== null) {
+                const gastoReal = parseInput(gastoRealInput);
+                
+                let gastoVrInput = prompt(`Dia ${dia}: Insira o Gasto (VR):`, (Number(diaData.gastoVr) || 0).toFixed(2));
+                const gastoVr = parseInput(gastoVrInput);
+
+                diaData.gastoComum = gastoReal;
+                diaData.gastoVr = gastoVr;
+                
+                diaData.status = 'passado';
+                
+                recalcularSaldos();
+                renderDailyCards();
+            }
+        }
+
+
+        // --- INICIALIZAÇÃO ---
+
+        async function initApp() {
+            // 1. Carrega dados (Firebase ou fallback)
+            budgetData = await loadFromFirestore();
+            
+            // 2. Garante a inicialização correta
+            const currentMonthData = getMonthData();
+            currentMonthData.saldoInicialComum = Number(currentMonthData.saldoInicialComum) || 0;
+            currentMonthData.saldoInicialVr = Number(currentMonthData.saldoInicialVr) || 0;
+            
+            // 3. Recalcula e renderiza
+            recalcularSaldos();
+            renderDailyCards();
+        }
+
+        document.addEventListener('DOMContentLoaded', initApp);
+
+    </script>
+</body>
+</html>

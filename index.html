@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menu Principal - App Financeiro</title>
+    <style>
+        body {
+            font-family: 'Roboto', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            background-color: #e0f7fa;
+            color: #333;
+            text-align: center;
+        }
+        .welcome-container {
+            padding: 50px;
+            max-width: 600px;
+            margin: 100px auto;
+            background: linear-gradient(145deg, #ffffff, #f0f4f8);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        }
+        h1 { 
+            color: #01579b; 
+            margin-bottom: 30px; 
+            font-weight: 700;
+            font-size: 2em;
+        }
+        .menu-list {
+            list-style: none;
+            padding: 0;
+            margin-top: 40px;
+        }
+        .menu-list a {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #00bcd4;
+            color: white;
+            text-decoration: none;
+            padding: 18px;
+            margin: 15px 0;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 1.1em;
+            transition: background-color 0.3s, transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .menu-list a:hover {
+            background-color: #0097a7;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 10px rgba(0, 0, 0, 0.2);
+        }
+        .menu-list a span {
+            margin-right: 15px;
+            font-size: 1.2em;
+        }
+    </style>
+</head>
+<body>
+    <div class="welcome-container">
+        <h1>Planejamento Financeiro</h1>
+        <p>Selecione a área para continuar o controle:</p>
+        <ul class="menu-list">
+            <li><a href="caixinha.html"><span>🏦</span> Minhas Caixinhas (Acompanhamento)</a></li>
+            <li><a href="metas_financeiras_fim.html"><span>🎯</span> Metas Financeiras (Objetivos Finais)</a></li>
+        </ul>
+    </div>
+</body>
+</html>
